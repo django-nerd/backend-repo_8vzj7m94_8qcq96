@@ -1,48 +1,44 @@
 """
-Database Schemas
+Database Schemas for CRE Capital Stack Optimizer
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
-
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Each Pydantic model represents a MongoDB collection. The collection name is the lowercase
+of the class name (e.g., Project -> "project").
 """
-
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
-from typing import Optional
 
-# Example schemas (replace with your own):
+# Core entities
+class Project(BaseModel):
+    name: str = Field(..., description="Project name")
+    location: Optional[str] = Field(None, description="City, State")
+    tdc: float = Field(..., gt=0, description="Total Development Cost ($)")
+    noi: float = Field(..., ge=0, description="Stabilized Net Operating Income (annual $)")
+    min_dscr: float = Field(1.25, gt=0, description="Minimum DSCR covenant")
+    max_ltc: float = Field(0.65, gt=0, le=1, description="Maximum loan-to-cost for senior debt")
+    min_equity: float = Field(0.1, ge=0, le=1, description="Minimum required common equity as % of TDC")
 
-class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+class CapitalOption(BaseModel):
+    name: str = Field(..., description="Instrument name, e.g., Senior Debt, Mezzanine, Pref Equity, Common Equity")
+    kind: Literal["debt","mezz","pref","equity"] = Field(..., description="Type category")
+    annual_cost: float = Field(..., gt=0, description="Annual cost of capital as a decimal (e.g., 0.07 = 7%)")
+    points: float = Field(0.0, ge=0, description="One-time origination points as decimal of principal")
+    min_share: float = Field(0.0, ge=0, le=1, description="Minimum share of TDC this instrument must represent")
+    max_share: float = Field(1.0, gt=0, le=1, description="Maximum share of TDC this instrument can represent")
+    max_ltc: Optional[float] = Field(None, ge=0, le=1, description="For senior/mezz debt: max LTC limit of TDC")
+    enforce_dscr: bool = Field(False, description="Include this instrument in DSCR debt service constraint")
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+class StackSlice(BaseModel):
+    option_name: str
+    kind: str
+    amount: float
+    share: float
+    annual_cost: float
 
-# Add your own schemas here:
-# --------------------------------------------------
+class CapitalStack(BaseModel):
+    project_name: str
+    tdc: float
+    wacc: float
+    slices: List[StackSlice]
+    notes: Optional[str] = None
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+# The schema endpoint reader uses these models to understand collections.
